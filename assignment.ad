@@ -1,0 +1,463 @@
+---
+title: "HW03: Průzkumník kontejnerů"
+layout: "homework"
+list-of-files: ["main.c", "*.c", "*.h"]
+solution-path: /home/kontr/pb071/hw03/container-explorer
+publish: now
+deadline-early: '2023-04-05 24:00'
+deadline-final: '2023-04-12 24:00'
+authors:
+  - xbiersk1
+  - xhanulik
+  - xhrbace1
+  - xciernik
+---
+
+== Představení úkolu
+
+V tomto domácím úkolu budete prohledávat kontejnery. Naštěstí ne jejich obsah, 
+ale jejich umístění na mapě. V rámci přivýdělku u technických služeb města 
+máte jezdit s popelářským vozem a nakládat obsahy různých kontejnerů. 
+Jako správný informatik však chcete svoji práci co nejvíce zoptimalizovat. 
+Na webových stránkách města jste si našli soubory s různými informacemi 
+o veškerých existujících kontejnerech. Teď už jen stačí soubory zpracovat, 
+pěkně si je vypsat, vyfiltrovat jen ty chtěné a naimplementovat nalezení 
+nejkratší cesty mezi nimi. Tak hurá do toho.
+
+=== Vstupní soubory
+Mezi povinné argumenty vašeho programu patří názvy souborů tvořící dataset, 
+který má program zpracovat. Dataset se skládá ze souboru s informacemi 
+o kontejnerech a souboru s cestami. Pro naše potřeby jsme vybrali kontejnery 
+z některých městských částí města Brna. Úplná data jsou k nalezení 
+na https://data.brno.cz/datasets/kontejnery-na-separovan%C3%BD-odpad-containers-for-recycling[data.brno.cz]. 
+Podobně upravené soubory s kontejnery (a k nim vytvořené soubory s cestami) 
+můžete využít pro vlastní testování. Několik jich dostanete jako součást kostry 
+úkolu.
+
+==== Soubor s informacemi o kontejnerech
+Soubor s kontejnery je CSV soubor obsahující seznam kontejnerů 
+s následujícími **9** sloupci:
+
+* ID kontejneru (unikátní pro každý kontejner, nezáporné celé číslo)
+* Zeměpisná šířka (číslo s přesností až 15 desetinných míst)
+* Zeměpisná délka (číslo s přesností až 15 desetinných míst)
+* Typ tříděného odpadu, který je jedním z následujících:
+** Plastics and Aluminium
+** Paper
+** Biodegradable waste
+** Clear glass
+** Colored glass
+** Textile
+* Kapacita kontejneru v litrech (nezáporné celé číslo)
+* Název kontejneru (nepovinné)
+* Ulice (nepovinné)
+* Číslo popisné (nezáporné celé číslo, nepovinné)
+* Informace o tom, zda je kontejner veřejně přístupný 
+(obsahuje pouze hodnoty _Y_ nebo _N_)
+
+Validní soubor s informacemi o kontejnerech obsahuje právě **9** sloupců. 
+Hodnoty v některých sloupcích ale mohou chybět - označeno jako _nepovinné_. 
+V takovém případě je daný sloupec prázdný, tedy část řádku vypadá takto: 
+`...,,...`. Pokud chybí hodnoty v jiných sloupcích, soubor validní není. 
+Pokud některá položka kontejneru neodpovídá zadání (např. ID je písmeno, typ 
+odpadu je `Oil`, ...), soubor taky není validní.
+
+Příklad (soubor se smyšlenými daty `example-containers.csv`):
+----
+1,16.607283420000044,49.27438368800006,Colored glass,1550,Drozdi - SMO,Drozdi,55,Y
+2,16.607283420000044,49.27438368800006,Clear glass,1550,Drozdi - SMO,Drozdi,55,Y
+3,16.607283420000044,49.27438368800006,Plastics and Aluminium,1100,Drozdi - SMO,Drozdi,55,Y
+4,16.60731140000007,49.27432169700006,Colored glass,900,Drozdi - SMO,Drozdi,55,Y
+5,16.606909424000037,49.276230991000034,Paper,5000,Klimesova - podzemni kontejnery,Klimesova,60,N
+6,16.606909424000037,49.276230991000034,Colored glass,3000,Klimesova - podzemni kontejnery,Klimesova,60,N
+7,16.606909424000037,49.276230991000034,Plastics and Aluminium,5000,Klimesova - podzemni kontejnery,Klimesova,60,N
+8,16.608153600000042,49.276508300000042,Biodegradable waste,3000,Na Buble 1a,Na Buble,5,Y
+9,16.608153600000042,49.276508300000042,Textile,500,Na Buble 1a,Na Buble,5,Y
+10,16.610161121000001,49.278594212000002,Plastics and Aluminium,900,Odlehla 68,Odlehla,70,Y
+11,16.610161121000001,49.278594212000002,Paper,2000,Odlehla 68,Odlehla,70,Y
+----
+
+==== Soubor s cestami
+Soubor s cestami je CSV soubor obsahující seznam cest mezi kontejnery 
+s následujícími **3** sloupci:
+
+* ID výchozího kontejneru cesty (nezáporné celé číslo)
+* ID cílového kontejneru cesty (nezáporné celé číslo)
+* Vzdálenost mezi těmito kontejnery v metrech (kladné celé číslo)
+
+Příklad (soubor se smyšlenými daty `example-paths.csv`):
+----
+1,4,500
+2,4,500
+3,4,500
+4,5,100
+5,8,200
+6,8,200
+7,8,200
+8,4,400
+9,10,500
+10,9,500
+11,8,500
+----
+
+Všechny kontejnery uvedené v souboru s cestami musí být obsaženy i v souboru 
+s kontejnery (naopak to ale neplatí). Cesty mezi kontejnery jsou obousměrné, 
+tj. pokud soubor s cestami obsahuje cestu z kontejneru _A_ do kontejneru 
+_B_ s délkou _x_, pak existuje i cesta z _B_ do _A_ stejné délky _x_. 
+Cesty se mohou v souboru opakovat, počítejte je ale vždy jen jednou 
+(můžete předpokládat, že budou mít vždy stejnou délku). 
+
+Dva kontejnery, mezi kterými existuje cesta v souboru s cestami, 
+nazýváme _sousedé_. 
+
+Můžete předpokládat, že pokud má více kontejnerů stejné souřadnice na 14 
+desetinných míst (musíte provést vhodnou kontrolu), tak mezi nimi neexistuje 
+cesta.
+
+Soubor s cestami může být i prázdný, pokud se mezi kontejnery žádné cesty 
+nevyskytují (i v tomto případě však musí být soubor v argumentech programu).
+
+Pokud soubor není prázdný, každý řádek musí obsahovat 3 sloupce s neprázdnými 
+položkami a položky musí odpovídat zadání, jinak je soubor nevalidní. Soubor 
+je také nevalidní, když uvedené ID kontejneru není v souboru s informacemi 
+o kontejnerech.
+
+Uvedené vzdálenosti nemusí odpovídat realné vzdálenosti podle souřadnic 
+kontejnerů.
+
+[TIP]
+Formát CSV není plně standardizovaný. CSV soubor může někdy obsahovat úvodní 
+řádek s popisem sloupců. V tomto úkolu můžete předpokládat, že vstupní CSV 
+soubory takový řádek neobsahují, jednotlivá pole jsou oddělena čárkou (`,`) 
+a desetinnou značkou je tečka (`.`).
+
+=== Parser
+K dispozici máte implementaci zpracování vstupních souborů, která vám ulehčí 
+práci s kontejnery. Parser umožňuje do paměti načíst zadané CSV soubory 
+a poskytuje jednoduchý přístup k jednotlivým položkám datasetu. Parser 
+se skládá ze souborů `data_source.c` a `data_source.h`, které dostanete 
+v kostře.
+
+[WARNING]
+====
+Použijte pouze funkce, které jsou deklarovány v hlavičkovém souboru 
+`data_source.h`! Parser nijak neupravujte, soubory nepřejmenovávejte, 
+při testování Kontr používá naši implementaci `data_source.c` a 
+`data_source.h`, takže se vaše případné změny v těchto souborech při testování 
+neprojeví. Můžete si naimplementovat vlastní parser, ale tato možnost není 
+doporučována a v případě opsání dodaného parseru za účelem lehčího přístupu 
+k interním strukturám vám hrozí oprava této části kódu. Váš program s vaším 
+parserem by samozřejmě musel rozpoznávat validní vstupní soubory stejně jako 
+dodaný parser.
+====
+
+Před použitím je parser potřeba inicializovat pomocí funkce `init_data_source()`, 
+která má následující hlavičku:
+[source, c]
+----
+bool init_data_source(const char *containers_path, const char *paths_path);
+----
+
+Inicializační funkce pracuje se dvěma vstupními argumenty - cestou k CSV 
+souboru s kontejnery a cestou k CSV souboru s cestami. Funkce vstupní soubory 
+nahraje a zkontroluje, zda soubory obsahují správný počet sloupců. 
+Funkce vrací `false`, jen když zadaný soubor nelze otevřít, počet sloupců 
+v souboru je nesprávný nebo nastane jiná chyba znemožňující pokračování 
+(selhání alokace, ...). Jinak vrací `true`. Ověřit validitu obsahu 
+jednotlivých položek tedy musíte sami.
+
+Funkce `get_*()` vrací jednotlivé položky datasetu (nebo `NULL` v případě 
+indexu mimo rozsah). Tyto funkce na vstupu berou číslo řádku daného souboru 
+(číslujeme od 0). Položku datasetu vrací jako řetězec ukončený nulovým bajtem 
+(`\0`), který je potřeba dále zpracovat. O uvolnění paměti řetězce se postará 
+parser po zavolání “destruktoru”. Nespoléhejte se tedy, že řetězec bude někde 
+naalokovaný po celý běh programu a raději si jej překopírujte, 
+pokud je to potřeba. Hlavičky funkcí jsou následující:
+[source, c]
+----
+const char *get_container_id(size_t line_index);
+const char *get_container_x(size_t line_index);
+const char *get_container_y(size_t line_index);
+const char *get_container_waste_type(size_t line_index);
+const char *get_container_capacity(size_t line_index);
+const char *get_container_name(size_t line_index);
+const char *get_container_street(size_t line_index);
+const char *get_container_number(size_t line_index);
+const char *get_container_public(size_t line_index);
+const char *get_path_a_id(size_t line_index);
+const char *get_path_b_id(size_t line_index);
+const char *get_path_distance(size_t line_index);
+----
+
+Pro správné uvolnění paměti alokované pro parser musíte před ukončením programu 
+zavolat “destruktor” parseru:
+[source, c]
+----
+void destroy_data_source(void);
+----
+
+V hlavičkovém souboru parseru naleznete detailní popis funkcionality 
+jednotlivých funkcí, případně se můžete podívat přímo na jejich implementaci 
+v souboru `data_source.c` (pro samotné splnění úkolu to však není potřebné).
+
+== Zadání
+Jádrem tohoto domácího úkolu je správně zpracovat výstup z parseru a následně 
+naimplementovat tři podúkoly zabývající se operacemi nad zpracovanými daty: 
+výpis kontejnerů, filtrování kontejnerů a shlukování kontejnerů do stanovišť. 
+Důležitou částí je také zpracování chyb, které mohou nastat při běhu programu.
+
+=== Spuštění programu
+
+----
+./container-explorer [-t A] [-c B-C] [-p D] [-s] [-g E,F] CONTAINERS_FILE PATHS_FILE
+----
+
+Na vstupu musí být vždy dva soubory - soubor s kontejnery a soubor s cestami. 
+Soubory se zadávají na konec, po všech chtěných přepínačích, jako dva poslední 
+argumenty programu. Požadavky na jednotlivé přepínače a jejich argumenty 
+naleznete v sekci <<Požadavky>>.
+
+Program vypíše vhodnou chybovou hlášku na standardní chybový výstup (`stderr`) 
+a skončí s nenulovou návratovou hodnotou když:
+
+* vstupní soubor chybí v argumentech programu nebo není uveden mezi dvěmi 
+posledními argumenty
+* se program spustí s více přepínači z různých podúkolů
+* se program spustí s více stejnými přepínači
+* se program spustí s chybnými nebo chybějícími parametry přepínačů
+* program se spustí s chybnými přepínači nebo argumenty
+* inicializační funkce dodaného parseru vrátí `false` (v případě použítí 
+dodaného parseru)
+* vstupní soubory nejsou validní
+* nastanou jiné chyby (například selhání alokační funkce)
+
+== Požadavky
+=== 1. Načtení a výpis dat
+Vašim prvním úkolem je načtení dat, jejich zpracování a následný výpis. 
+Pro vypsání dat se bude program volat bez přepínačů:
+----
+./container-explorer CONTAINERS_FILE PATHS_FILE
+----
+
+K načtení dat doporučujeme použít dodaný <<Parser>>. Výstup bude vypsán 
+na standardní výstup `stdout`. 
+
+Výpis kontejnerů vypadá následovně:
+
+* informace o jednom kontejneru jsou na jednom řádku
+* každý řádek je zakončen znakem nového řádku (`\n`)
+* jednotlivé části řádku jsou odděleny čárkou následovanou mezerou
+* struktura řádku:
+** `ID: _ID_, Type: _typ odpadu_, Capacity: _objem_, Address: _ulice číslo popisné_, Neighbors: _ID ID..._`
+** část `Address` je tvořená názvem ulice a číslem popisným, odděleno mezerou
+** část `Neighbors` obsahuje ID kontejnerů sousedících 
+(existuje mezi nimi cesta v souboru s cestami) s kontejnerem, 
+jehož ID je v první části řádku
+** část `Neighbors` je rozdělena mezerami, v případě žádných sousedů neobsahuje 
+žádný znak (v tomto případě konec řádku vypadá následovně: `Neighbors:\n`)
+** část `Neighbors` je seřazená vzestupně podle uvedených ID
+* řádky o jednotlivých kontejnerech jsou ve stejném pořadí 
+jako ve vstupním CSV souboru
+
+Pokud v datasetu nějaká informace chybí, na její místo ve výpisu se nevypíše 
+nic kromě označení dané informace (např. `..., Address:, Neighbors:...`).
+
+Příklad:
+----
+./container-explorer example-containers.csv example-paths.csv
+ID: 1, Type: Colored glass, Capacity: 1550, Address: Drozdi 55, Neighbors: 4
+ID: 2, Type: Clear glass, Capacity: 1550, Address: Drozdi 55, Neighbors: 4
+ID: 3, Type: Plastics and Aluminium, Capacity: 1100, Address: Drozdi 55, Neighbors: 4
+ID: 4, Type: Colored glass, Capacity: 900, Address: Drozdi 55, Neighbors: 1 2 3 5 8
+ID: 5, Type: Paper, Capacity: 5000, Address: Klimesova 60, Neighbors: 4 8
+ID: 6, Type: Colored glass, Capacity: 3000, Address: Klimesova 60, Neighbors: 8
+ID: 7, Type: Plastics and Aluminium, Capacity: 5000, Address: Klimesova 60, Neighbors: 8
+ID: 8, Type: Biodegradable waste, Capacity: 3000, Address: Na Buble 5, Neighbors: 4 5 6 7 11
+ID: 9, Type: Textile, Capacity: 500, Address: Na Buble 5, Neighbors: 10
+ID: 10, Type: Plastics and Aluminium, Capacity: 900, Address: Odlehla 70, Neighbors: 9
+ID: 11, Type: Paper, Capacity: 2000, Address: Odlehla 70, Neighbors: 8
+----
+
+=== 2. Filtrování dat
+Druhým úkolem je naimplementování možnosti filtrování v datasetu a následný 
+výpis vyfiltrovaných dat. Při filtrování se na `stdout` vypíší jen řádky 
+s kontejnery splňující filtr, a to 
+**ve stejném formátu jako v první části úlohy**. Kontejnery se vypisují 
+v pořadí, v jakém byly seřazeny ve vstupním souboru.
+
+Možnosti filtrování:
+
+* filtr pro typ odpadu
+** použití: `-t _X_`
+** vypíší se jen řádky s typem odpadu _X_. _X_ je označení typu:
+*** A -> Plastics and Aluminium
+*** P -> Paper
+*** B -> Biodegradable waste
+*** G -> Clear glass
+*** C -> Colored glass
+*** T -> Textile
+** parametry tohoto přepínače je možné kombinovat: `-t _XY_` 
+(zadání nějakého typu odpadu opakovaně neskončí s chybou)
+
+* filtr pro objem
+** použití: `-c _X_-_Y_` kde `_X_ \<= _Y_` a `X, Y >= 0`
+** vypíší se jen řádky splňující: `_X \<= OBJEM \<= Y_`
+** např. `-c 500-500` vyfiltruje jen kontejnery s objemem 500l
+** program musí jako pomlčku oddělující hodnoty akceptovat znak _hyphen-minus_ 
+(ASCII 0x2D, znak pomlčky/spojovníku na klasických klávesnicích)
+
+* filtr pro veřejnost kontejneru
+** použití: `-p _X_`, kde _X_ je `Y` nebo `N`
+
+NOTE: Část _Neighbors_ ve výpisu kontejnerů bude obsahovat i ID takových kontejnerů, 
+které nesplňují daný filtr.
+
+Různé přepínače pro filtrování je možné spolu kombinovat. V případě 
+opakujícího se přepínače filtru (ať už se stejnými, nebo různými hodnotami) 
+nebo v případě chybného parametru přepínače program vypíše vhodnou chybovou 
+hlášku na `stderr` a skončí s nenulovou návratovou hodnotou.
+
+Příklad:
+----
+./container-explorer -t PA -c 1000-2000 example-containers.csv example-paths.csv
+ID: 3, Type: Plastics and Aluminium, Capacity: 1100, Address: Drozdi 55, Neighbors: 4
+ID: 11, Type: Paper, Capacity: 2000, Address: Odlehla 70, Neighbors: 8
+----
+
+=== 3. Výpis stanovišť
+Třetím úkolem je rozdělit a vypsat kontejnery dle jejich stanovišť. 
+Stanoviště je místo, které obsahuje kontejnery se souřadnicemi stejnými 
+na 14 desetinných míst. Stanoviště může obsahovat libovolné množství kontejnerů 
+(i jeden) libovolných typů (ty se mohou na jednom stanovišti opakovat). 
+
+Použití: přepínač `-s`.
+
+Výpis stanovišť bude ve formátu 
+`_ID_;__zakodovane_typy__;__seznam_sousedu__`, kde:
+
+* `ID` je unikátní identifikace stanoviště. Odpovídá pořadí, v jakém se jejich 
+kontejnery objevují ve vstupním datasetu, počínaje 1.
+* `zakodovane_typy` je řetězec identifikující, jaké typy odpadu se na stanovišti 
+nachází. Je složen ze znaků pro jednotlivé typy (viz filtrování, znaky uvádějte 
+ve stejném pořadí jako jsou uvedeny v zadání) a obsahuje jen ty, které jsou 
+na stanovišti zastoupeny, a to právě jednou (tj. nezáleží, zda je na stanovišti 
+jeden nebo více kontejnerů stejného typu).
+* `seznam_sousedu` je seznam ID sousedních stanovišť oddělených čárkou (`,`). 
+Stanoviště spolu sousedí, pokud existuje alespoň jedna cesta mezi libovolnými 
+z jejich kontejnerů. ID jsou seřazena vzestupně a každé je uvedeno 
+právě jednou.
+
+Nepředpokládejte, že kontejnery tvořící jedno stanoviště jsou 
+ve vstupním datasetu uvedeny za sebou. _ID_ stanoviště je určeno podle pořadí 
+prvního kontejneru onoho stanoviště vyskytujícího se ve vstupním datasetu.
+
+Kombinace přepínače na výpis stanovišť s jakýmkoliv jiným přepínačem způsobí 
+ukončení programu s nenulovou návratovou hodnotou a výpis vhodné chybové hlášky 
+na `stderr`.
+
+Příklad:
+----
+./container-explorer -s example-containers.csv example-paths.csv
+1;AGC;2
+2;C;1,3,4
+3;APC;2,4
+4;BT;2,3,5
+5;AP;4
+----
+
+== Bonusové rozšíření
+
+=== Nalezení nejkratší cesty [15 bodů]
+Stanoviště a cesty mezi nimi tvoří graf. Bonusovým úkolem je nalézt 
+nejkratší cestu v tomto grafu mezi dvěmi zadanými **stanovišti**. Stanoviště 
+a jejich sousedé jsou zadefinována ve 3. podúkolu.
+
+Použití: `-g _X_,_Y_`, kde _X_ je ID 
+startovního stanoviště a _Y_ je ID cílového stanoviště. 
+
+Výpis bude ve tvaru `_X_-_A_-_B_-...-_C_-_Y_ _distance_`, kde _A_, _B_, _C_ 
+jsou ID všech stanovišť, přes které vede nejkratší cesta z _X_ do _Y_, 
+a _distance_ je celková délka této cesty. Pokud v grafu existuje více 
+nejkratších cest, vypište jen jednu. Pokud se _X_ rovná _Y_,  výpis 
+bude ve tvaru `_X_ 0`. Pokud mezi _X_ a _Y_ žádná cesta neexistuje, program 
+na `stdout` vypíše `No path between specified sites` a skončí s nulovou 
+návratovou hodnotou.
+
+Mezi kontejnery ze dvou sousedních stanovišť může existovat více cest 
+- v takovém případě pracujte jen s jednou cestou spojující dvě stanoviště. 
+Můžete předpokládat, že pokud existuje více cest mezi kontejnery 
+ze dvou sousedních stanovišť, tak jejich délka je stejná. 
+
+K nalezení nejkratší cesty použijte 
+https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm[Dijkstrův algoritmus]. 
+Dijkstrův algoritmus obecně slouží k najití nejkratších cest z jednoho vrcholu 
+do ostatních. V tomto úkolu bude stačit najít nejkratší cestu z jednoho vrcholu 
+do druhého, využijeme tedy lehce upravenou verzi. Doporučujeme 
+řídit se následujícím pseudokódem:
+
+* `V` je množina všech vrcholů, `source` je startovní a `target` je cílový 
+vrchol
+* `dist` je pole s aktuálními vzdálenostmi ze `source` do jiných vrcholů
+* `prev` je pole s vrcholy grafu, ze kterých vede nejkratší cesta do daného 
+vrcholu (ekvivalentně - obsahuje další vrchol na cestě ze zadaného vrcholu 
+do `source`), například `prev[2]` vrátí takový vrchol, 
+ze kterého vede zatím nejkratší cesta do vrcholu `2` (na cestě 
+ze `source` do `2`)
+* `Q` je množina dosud nenavštívených vrcholů
+* `length(u, v)` je funkce vracející vzdálenost mezi vrcholy `u` a `v`
+
+[source,subs="normal"]
+----
+ 1  function Dijkstra(V, source, target):
+ 2      
+ 3      for each vertex v in V:
+ 4          dist[v] <- INFINITY
+ 5          prev[v] <- UNDEFINED
+ 6          add v to Q
+ 7      dist[source] <- 0
+ 8      
+ 9      while Q is not empty:
+10          u <- vertex in Q with min dist[u]
+11          if u = target:
+12              break
+13          remove u from Q
+14          
+15          for each neighbor v of u:
+16              alt <- dist[u] + length(u, v)
+17              if alt < dist[v]:
+18                  dist[v] <- alt
+19                  prev[v] <- u
+----
+
+Jeden z aspektů, který ovlivňuje efektivitu Dijkstrova algoritmu, je získání 
+vrcholu s nejkratší vzdáleností od startovacího vrcholu (`source`) z množiny 
+dosud nenavštívených vrcholů (`Q`, řádek 10 v pseudokódu). Tato operace 
+se často implementuje například pomocí binární haldy, nám ale postačí 
+klasické lineární vyhledávání v poli.
+
+Můžete předpokládat, že žádná cesta mezi stanovišti není delší než __INT_MAX__ 
+metrů.
+
+Program vypíše vhodnou chybovou hlášku na `stderr` a vrátí nenulovou návratovou 
+hodnotu, pokud je formát přepínače chybný (chybí čárka, chybí parametr, ...), 
+zadané ID neexistuje nebo se přepínač použil v kombinaci s jiným přepínačem.
+
+Příklad:
+----
+./container-explorer -g 1,5 example-containers.csv example-paths.csv
+1-2-3-4-5 1300
+----
+
+== Poznámky
+V tomto úkolu poprvé odevzdáváte `\*.c` a `*.h`, což znamená, že se vaše řešení 
+sestaví z libovolných .c a .h souborů, které odevzdáte (kromě `data_source.c` 
+a `data_source.h`, které budou nahrazeny těmi z kostry). Silně doporučujeme 
+se zamyslet nad vhodnou strukturou programu a rozdělit jej do vícero souborů, 
+může to výrazně pomoct přehlednosti celého vašeho řešení. Tyto soubory musí 
+obsahovat soubor `main.c` a nesmí být zanořeny do podadresářů.
+
+Testy nanečisto najdete v kostře úkolu jako `tests-nanecisto.c`.
+Pro testování můžete využít dodané vstupní soubory ve složce `data`.
+
+Vzorovou implementaci najdete na Aise v 
+`{{page.solution-path}}`.
